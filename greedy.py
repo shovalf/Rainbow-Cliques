@@ -48,6 +48,8 @@ def create_graph(num):
     avg_len = np.mean(lens)
     if num != 0:
         d, my_dict, g = add_class(g, avg_len, d, my_dict, num=num)
+    labels_clique = list(set(my_dict.values()))
+    print("there are {} labels".format(len(labels_clique)))
     # g = add_nodes_edges(g, my_dict)
     return g, my_dict, d, avg_len
 
@@ -140,6 +142,24 @@ def GC(clique, g, nodes, label_to_node_, node_to_label_, trip=False):
 #     print(clique)
 #     return clique
 
+def branch(g):
+    """
+    The function get a graph and return 2 graph:
+    one is v - the node with the highest rank and it's neighbors
+    the second is the graph\{v}
+    :param graph: a graph
+    :return: g1, g2
+    """
+    nodes = list(g.nodes())
+    node2deg = {n: g.degree(n) for n in nodes}
+    node_max_deg = max(node2deg, key=node2deg.get)
+    connected = [n for n in nodes if g.has_edge(n, node_max_deg)]
+    connected.append(node_max_deg)
+    g1 = g.subgraph(connected)
+    g2 = g.copy()
+    g2.remove_node(node_max_deg)
+    return g1, g2
+
 
 def plot_all_times(times_list1, times_list2):
     plt.figure(0, figsize=(9, 7))
@@ -182,8 +202,8 @@ for num in range(1):
     final_time = round(time.time() - middle, 2)
     print("final time: ", final_time)
     times.append(final_time)
-# print(times)
-# plot_times(times)
+print(times)
+plot_times(times)
 
 
 

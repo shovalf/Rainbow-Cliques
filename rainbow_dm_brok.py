@@ -198,7 +198,7 @@ def find_cliques(graph, labels, label_to_node_, potential_clique, remaining_node
                 print('This is a clique:', potential_clique)
                 final_time = time.time() - t
                 print("final time: ", round(final_time, 2))
-                sys.exit()
+                # sys.exit()
             else:
                 print("not colorful", potential_clique)
         else:
@@ -243,8 +243,8 @@ graph_, node_to_label, label_to_node, avg_len_label = create_graph(0)
 colors = ["tab:orange", "tab:green", "tab:red", "tab:blue", "tab:purple", "tab:brown", "tab:pink", "tab:gray", "tab:olive"]
 
 subgraph = graph_.subgraph([0, 5, 167, 189, 364, 398, 577, 744, 924])
-nx.draw_networkx(subgraph, with_labels=True, node_size=500, node_color=colors)
-plt.show()
+# nx.draw_networkx(subgraph, with_labels=True, node_size=500, node_color=colors)
+# plt.show()
 
 
 # labels = list(label_to_node.keys())
@@ -258,21 +258,24 @@ plt.show()
 # my = time.time() - t_
 # print(my)
 # t_ = time.time()
-# if a==1:
-#     total_cliques = first_sol(graph_, node_to_label, label_to_node, t_)
-# else:
-#     total_cliques = second_sol(graph_, node_to_label, label_to_node, t_)
-# print("i stopped")
-# # total_cliquess = second_sol(graph_, node_to_label, label_to_node, t_)
-
+a = 2
+if a==1:
+    total_cliques = first_sol(graph_, node_to_label, label_to_node, t_)
+else:
+    total_cliques = second_sol(graph_, node_to_label, label_to_node, t_)
+print("i stopped")
+# total_cliquess = second_sol(graph_, node_to_label, label_to_node, t_)
 
 # total_time, c_n_hat_, final_clique, avg = run_dm(graph_, node_to_label, 50)
 # subgraph = find_sub_graph(graph_, final_clique)
 # # subgraph = find_c_hat_subgraph(graph_, c_n_hat_)
 # # b = nx.algorithms.clique.find_cliques(graph_)
+# print("start")
 # total_cliques = find_cliques(subgraph, node_to_label, label_to_node, [], list(subgraph.nodes()), [], t_)
+# print("end")
 # # total_cliques = find_cliques(graph_, node_to_label, label_to_node, [], list(graph_.nodes()), [])
 # a=1
 # # dm_next_set_, updates_ = cleansing_algorithm(c_n_hat_, graph_, "clique", 100)
 # # print(dm_next_set_)
-
+a = 1
+print("finished")
