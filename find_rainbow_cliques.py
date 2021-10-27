@@ -50,7 +50,7 @@ def create_graph(num):
     if num != 0:
         d, my_dict, g = add_class(g, avg_len, d, my_dict, num=num)
     labels_clique = list(set(my_dict.values()))
-    print("there are {} labels".format(len(labels_clique)))
+    # print("there are {} labels".format(len(labels_clique)))
     # g = add_nodes_edges(g, my_dict)
     return g, my_dict, d, avg_len
 
@@ -260,8 +260,76 @@ def find_max_vertices(labels_clique, labels, list_v, num=5):
 
 
 def my_algorithm(graph, labels_to_node, nodes_to_label):
-    nodes_score, lables_score = rank_nodes(graph, labels_to_node, nodes_to_label)
-    pass
+    """
+    The algorithm rank the labels and build clique with this order (take less communicate labels first)
+    :param graph: a graph
+    :param labels_to_node: a dictionary of label and the nodes in this label
+    :param nodes_to_label: a dictionary of node and it's label
+    :return: a clique
+    """
+    # rank nodes and labels
+    node_score, label_score = rank_nodes(graph, labels_to_node, nodes_to_label)
+    sorted_labels = {k: v for k, v in sorted(label_score.items(), key=lambda item: item[1])}
+    # sort nodes in label by their score
+    for label in labels_to_node:
+        labels_to_node[label] = sorted(labels_to_node[label], key=lambda node: node_score[node])
+    # find clique
+    labels = label_to_node.keys()
+    label_ind = 0
+    node_label_ind = 0
+    n_labels = len(label_to_node)
+    remaining_nodes = graph.nodes
+    clique = []
+    while len(clique) < n_labels:
+        label = labels[label_ind]
+        potential_nodes = [n for n in labels_to_node[label][node_label_ind] if n in remaining_nodes]
+        node = potential_nodes[0]
+        clique.append(node)
+        remaining_nodes = [n for n in remaining_nodes if n in list(graph.neighbors(node))]
+        #check if is empty
+        if not len(remaining_nodes):
+            node_label_ind = node_label_ind + 1
+            if node_label_ind > len(labels_to_node[label]):
+                label_ind -= 1
+        else:
+            label_ind += 1
+            node_label_ind = 0
+    return clique
+
+
+def kanna_algorithm(graph, node_to_label, label_to_node_, labels_list, potential_clique, remaining_nodes, label_ind=0):
+
+    """
+     The algorithm rank the labels and build clique with this order (take less communicate labels first)
+     :param graph: a graph
+     :param nodes_to_label: a dictionary of node and it's label
+     :param labels_to_node: a dictionary of label and the nodes in this label
+     :param labels_list: a list of all labels in graph
+     :param potential_clique: the builded clique until now
+     :param remaining_nodes: the potential nodes to be in the clique
+     :param label_ind: which label we add now
+     :return: a clique that contain all labels
+     """
+
+    # check if success
+    if len(potential_clique) == len(labels_list):
+        return potential_clique
+    # run of the nodes in this label with their rank
+    potential_nodes_in_label = [n for n in label_to_node_[labels_list[label_ind]] if n in remaining_nodes]
+    for node in potential_nodes_in_label:
+        # Try adding the node to the current potential_clique to see if we can make it work.
+        new_potential_clique = potential_clique + [node]
+        new_remaining_nodes = [n for n in remaining_nodes if n in list(graph.neighbors(node))]
+        clique_founded = kanna_algorithm(graph, node_to_label, label_to_node_,labels_list, new_potential_clique, new_remaining_nodes,
+                                       label_ind + 1)
+        if clique_founded:
+            return clique_founded
+
+        # We're done considering this node.  If there was a way to form a clique with it, we
+        # already discovered its maximal clique in the recursive call above.  So, go ahead
+        # and remove it from the list of remaining nodes.
+        remaining_nodes.remove(node)
+    return
 
 
 def rank_nodes(graph, label_to_node, nodes_to_label):
@@ -277,13 +345,14 @@ def rank_nodes(graph, label_to_node, nodes_to_label):
     nodes_score = {}
     labels_score = {}
     for node in graph.nodes:
-        connected_labels = np.zeros(n_labels + 1)
+        connected_labels = np.zeros(n_labels + 1, dtype= int)
         connected_nodes = list(graph.neighbors(node))
         for connected_node in connected_nodes:
             connected_labels[nodes_to_label[connected_node]] += 1
-            nodes_score[node] = min(connected_labels > 0)
+            nodes_score[node] = min(connected_labels[np.nonzero(connected_labels)])
     for label in label_to_node:
-        labels_score = np.mean(itemgetter(*label_to_node[label])(nodes_score))
+        labels_score[label] = np.mean(itemgetter(*label_to_node[label])(nodes_score))
+
     return nodes_score, labels_score
 
 
@@ -300,10 +369,12 @@ def remove_lonely_nodes(graph, label_to_node, nodes_to_label):
         for label in label_to_node:
             if nodes_to_label[node] != label and not len(set(neighbors).intersection(label_to_node[label])) !=0:
                 lonely_nodes.append(node)
+                del nodes_to_label[node]
+                label_to_node[label].remove(node)
                 break
     #print("There are {} lonely nodes".format(len(lonely_nodes)))
     graph.remove_nodes_from(lonely_nodes)
-    return graph, len(lonely_nodes)
+    return graph, label_to_node, node_to_label, len(lonely_nodes)
 
 
 def plot_times(times_list):
@@ -317,13 +388,14 @@ def plot_times(times_list):
     plt.savefig("running_time.png")
 
 
-def plot_all_times(times_list1, times_list2, times_list3):
+def plot_all_times(times_list1, times_list2, times_list3, times_list4):
     plt.figure(0, figsize=(9, 7))
     classes = [i + 9 for i in range(len(times_list1))]
     plt.xticks(np.arange(min(classes), max(classes) + 1, 1))
     plt.plot(classes, times_list1, color="blue", linewidth=3, label="dm algorithm")
     plt.plot(classes, times_list2, color="red", linewidth=3, label="Bron–Kerbosch algorithm")
     plt.plot(classes, times_list3, color="green", linewidth=3, label="Greedy Algorithm")
+    plt.plot(classes, times_list3, color="black", linewidth=3, label="New Algorithm")
     plt.title("Running Time VS Number of Classes")
     plt.xlabel("Number of classes")
     plt.ylabel("Running time [seconds]")
@@ -336,28 +408,31 @@ if __name__ == '__main__':
     times_dm = []
     times_bron_kerbosch = []
     times_greedy = []
+    times_kanna_algorithm = []
     lonely_nodes = []
     for num in range(num_of_colours):
-        #        t_ = time.time()
         graph_, node_to_label, label_to_node, avg_len_label = create_graph(num)
-        graph_, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
+        graph_, label_to_node, node_to_label, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
         lonely_nodes.append(n_lonely_nodes)
-        nodes_score, labels_score, = rank_nodes(graph_, label_to_node, node_to_label)
-        nodes_ = list(graph_.nodes())
         t1 = time.time()
-        total_time_, c_n_hat, final_clique_, avg_ = dm(graph_, node_to_label, 100)
+        total_time_, c_n_hat, final_clique_, avg_ = dm(graph_.copy(), node_to_label, 100)
         t2 = time.time()
         times_dm.append(t2 - t1)
-        total_cliques_ = bron_kerbosch_kanna(graph_, node_to_label, label_to_node, [], list(graph_.nodes()), [])
+        total_cliques_ = bron_kerbosch_kanna(graph_.copy(), node_to_label, label_to_node, [], list(graph_.nodes()), [])
         t3 = time.time()
         times_bron_kerbosch.append(t3-t2)
-        clique = greedy([0], graph_, nodes_, label_to_node, node_to_label, trip=False)
+        clique = greedy([0], graph_.copy(), graph_.nodes, label_to_node, node_to_label, trip=False)
         t4 = time.time()
         times_greedy.append(t4-t3)
-    #        triplets = [pair for pair in combinations(clique, 3)]
-    #        final_clique = greedy(list(triplets[0]), graph_, nodes_, label_to_node, node_to_label, trip=True)
-    #        final_time = round(time.time() - middle, 2)
-    #        print("final time: ", final_time)
-        print("finish")
-    plot_all_times(times_dm, times_bron_kerbosch, times_greedy)
+
+        # rank nodes and labels
+        node_score, label_score = rank_nodes(graph_.copy(), label_to_node, node_to_label)
+        sorted_labels = {k: v for k, v in sorted(label_score.items(), key=lambda item: item[1])}
+        # sort nodes in label by their score
+        for label in label_to_node:
+            label_to_node[label] = sorted(label_to_node[label], key=lambda node: node_score[node])
+        clique = kanna_algorithm(graph_, node_to_label, label_to_node, list(label_to_node.keys()), [], list(graph_.nodes), 0)
+        t5 = time.time()
+        times_kanna_algorithm.append((t5-t4))
+    plot_all_times(times_dm, times_bron_kerbosch, times_greedy, times_kanna_algorithm)
     plt.show()
