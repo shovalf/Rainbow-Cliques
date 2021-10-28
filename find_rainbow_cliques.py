@@ -372,8 +372,11 @@ def remove_lonely_nodes(graph, label_to_node, nodes_to_label):
                 del nodes_to_label[node]
                 label_to_node[label].remove(node)
                 break
-    #print("There are {} lonely nodes".format(len(lonely_nodes)))
-    graph.remove_nodes_from(lonely_nodes)
+    # print("There are {} lonely nodes".format(len(lonely_nodes)))
+    for node in lonely_nodes:
+        graph.remove_nodes_from(node)
+        # change numbers of left nodes
+        graph = nx.relabel_nodes(graph, lambda x: x+1 if (x>node) else x)
     return graph, label_to_node, node_to_label, len(lonely_nodes)
 
 
@@ -410,10 +413,11 @@ if __name__ == '__main__':
     times_greedy = []
     times_kanna_algorithm = []
     lonely_nodes = []
-    for num in range(num_of_colours):
-        graph_, node_to_label, label_to_node, avg_len_label = create_graph(num)
-        graph_, label_to_node, node_to_label, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
-        lonely_nodes.append(n_lonely_nodes)
+    graph_, node_to_label, label_to_node, avg_len_label = create_graph(0)
+    for _ in range(num_of_colours):
+        d, node_to_label, graph_ = add_class(graph_, avg_len_label, label_to_node, node_to_label, num=1)
+        # graph_, label_to_node, node_to_label, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
+        # lonely_nodes.append(n_lonely_nodes)
         t1 = time.time()
         total_time_, c_n_hat, final_clique_, avg_ = dm(graph_.copy(), node_to_label, 100)
         t2 = time.time()
