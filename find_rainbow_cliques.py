@@ -297,7 +297,7 @@ def my_algorithm(graph, labels_to_node, nodes_to_label):
     return clique
 
 
-def kanna_algorithm(graph, node_to_label, label_to_node_, labels_list, potential_clique, remaining_nodes, label_ind=0):
+def kanna_algorithm(graph, node_to_label, label_to_node_,nodes_dict, labels_list, potential_clique, remaining_nodes, added_labels):
 
     """
      The algorithm rank the labels and build clique with this order (take less communicate labels first)
@@ -310,18 +310,23 @@ def kanna_algorithm(graph, node_to_label, label_to_node_, labels_list, potential
      :param label_ind: which label we add now
      :return: a clique that contain all labels
      """
-
     # check if success
     if len(potential_clique) == len(labels_list):
         return potential_clique
+    # check which label will be added next
+    min_label = find_next_label(nodes_dict, added_labels, labels_list, node_to_label)
     # run of the nodes in this label with their rank
-    potential_nodes_in_label = [n for n in label_to_node_[labels_list[label_ind]] if n in remaining_nodes]
-    for node in potential_nodes_in_label:
+    potential_nodes_in_label = [n for n in label_to_node_[min_label] if n in remaining_nodes]
+    added_labels.append(min_label)
+    while potential_nodes_in_label:
+        # take max node and remove from potential
+        node = find_max_node(potential_nodes_in_label, nodes_dict, added_labels)
+        potential_nodes_in_label.remove(node)
         # Try adding the node to the current potential_clique to see if we can make it work.
         new_potential_clique = potential_clique + [node]
         new_remaining_nodes = [n for n in remaining_nodes if n in list(graph.neighbors(node))]
-        clique_founded = kanna_algorithm(graph, node_to_label, label_to_node_,labels_list, new_potential_clique, new_remaining_nodes,
-                                       label_ind + 1)
+        clique_founded = kanna_algorithm(graph, node_to_label, label_to_node_,nodes_dict, labels_list, new_potential_clique, new_remaining_nodes,
+                                       added_labels)
         if clique_founded:
             return clique_founded
 
@@ -332,6 +337,43 @@ def kanna_algorithm(graph, node_to_label, label_to_node_, labels_list, potential
     return
 
 
+def find_next_label(nodes_dict, added_labels, labels_list, nodes_to_label):
+    """
+    The function get a dictionary of nodes and the labels that added before and return the
+     label with the fewest neighbors
+    :param nodes_dict: a dictionary of nodes and the neighbors it has from each label
+    :param added_labels: the label that we added before
+    :param labels_list: a list of the labels
+    :param nodes_to_label: a dictionary of node and it's label
+    :return: the next label to add
+    """
+    # for each label find in how many nodes it is minimal
+    minimal_number = {label: 0 for label in labels_list if label not in added_labels}
+    for node, labels_dict in nodes_dict.items():
+        # take relevant labels
+        relavant_labels_dict = {key: labels_dict[key] for key in labels_list if key
+                                not in added_labels and key != nodes_to_label[node]}
+        if relavant_labels_dict != {}:
+            minimal_label = min(relavant_labels_dict, key=relavant_labels_dict.get)
+            minimal_number[minimal_label] += 1
+    return max(minimal_number, key=minimal_number.get)
+
+def find_max_node(nodes, nodes_dict, added_labels):
+    """
+    The function get nodes and return the next node to add to clique
+    :param nodes: a list of nodes
+    :param nodes_dict: a dictionary of nodes and the neighbors it has from each label
+    :param added_labels: the non-relevant labels
+    :return: the next node to choose
+    """
+    # take the sum of all neighbors
+    n_neighbors = {}
+    for node in nodes:
+        node_neighbors = nodes_dict[node]
+        relevant_neighbors = [node_neighbors[label] for label in node_neighbors if label not in added_labels]
+        n_neighbors[node] = sum(relevant_neighbors)
+    return max(n_neighbors, key=n_neighbors.get)
+
 def rank_nodes(graph, label_to_node, nodes_to_label):
     """
     The function gives score for each node - the score is the minimum number of neighborhoods that it has from certain label.
@@ -339,21 +381,17 @@ def rank_nodes(graph, label_to_node, nodes_to_label):
     :param grapha: a graph
     :param label_to_node: dictionary of labels and all nodes with this label
     :param nodes_to_label: dictionary oo nodes and the label of each node
-    :return: a dictionary of nodes with their score and labels with their score.
+    :return: a dictionary of nodes, each node's value is a dictionary that contaain label
+     and how many neighbors with this label the node has.
     """
-    n_labels = max(label_to_node)
-    nodes_score = {}
-    labels_score = {}
+    nodes_dict = {}
     for node in graph.nodes:
-        connected_labels = np.zeros(n_labels + 1, dtype= int)
         connected_nodes = list(graph.neighbors(node))
+        labels_dict = {label: 0 for label in label_to_node}
         for connected_node in connected_nodes:
-            connected_labels[nodes_to_label[connected_node]] += 1
-            nodes_score[node] = min(connected_labels[np.nonzero(connected_labels)])
-    for label in label_to_node:
-        labels_score[label] = np.mean(itemgetter(*label_to_node[label])(nodes_score))
-
-    return nodes_score, labels_score
+            labels_dict[nodes_to_label[connected_node]] += 1
+        nodes_dict[node] = labels_dict
+    return nodes_dict
 
 
 def remove_lonely_nodes(graph, label_to_node, nodes_to_label):
@@ -373,11 +411,8 @@ def remove_lonely_nodes(graph, label_to_node, nodes_to_label):
                 label_to_node[label].remove(node)
                 break
     # print("There are {} lonely nodes".format(len(lonely_nodes)))
-    for node in lonely_nodes:
-        graph.remove_nodes_from(node)
-        # change numbers of left nodes
-        graph = nx.relabel_nodes(graph, lambda x: x+1 if (x>node) else x)
-    return graph, label_to_node, node_to_label, len(lonely_nodes)
+    graph.remove_nodes_from(lonely_nodes)
+    return graph, len(lonely_nodes)
 
 
 def plot_times(times_list):
@@ -415,11 +450,13 @@ if __name__ == '__main__':
     lonely_nodes = []
     graph_, node_to_label, label_to_node, avg_len_label = create_graph(0)
     for _ in range(num_of_colours):
-        d, node_to_label, graph_ = add_class(graph_, avg_len_label, label_to_node, node_to_label, num=1)
-        # graph_, label_to_node, node_to_label, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
+        original_graph = graph_.copy()
+        d, node_to_label, graph_ = add_class(original_graph, avg_len_label, label_to_node, node_to_label, num=1)
+        # remove lonely nodes but not for dm
+        graph_, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
         # lonely_nodes.append(n_lonely_nodes)
         t1 = time.time()
-        total_time_, c_n_hat, final_clique_, avg_ = dm(graph_.copy(), node_to_label, 100)
+        total_time_, c_n_hat, final_clique_, avg_ = dm(original_graph.copy(), node_to_label, 100)
         t2 = time.time()
         times_dm.append(t2 - t1)
         total_cliques_ = bron_kerbosch_kanna(graph_.copy(), node_to_label, label_to_node, [], list(graph_.nodes()), [])
@@ -430,12 +467,8 @@ if __name__ == '__main__':
         times_greedy.append(t4-t3)
 
         # rank nodes and labels
-        node_score, label_score = rank_nodes(graph_.copy(), label_to_node, node_to_label)
-        sorted_labels = {k: v for k, v in sorted(label_score.items(), key=lambda item: item[1])}
-        # sort nodes in label by their score
-        for label in label_to_node:
-            label_to_node[label] = sorted(label_to_node[label], key=lambda node: node_score[node])
-        clique = kanna_algorithm(graph_, node_to_label, label_to_node, list(label_to_node.keys()), [], list(graph_.nodes), 0)
+        nodes_dict = rank_nodes(graph_.copy(), label_to_node, node_to_label)
+        clique = kanna_algorithm(graph_, node_to_label, label_to_node, nodes_dict, list(label_to_node.keys()), [], list(graph_.nodes), [])
         t5 = time.time()
         times_kanna_algorithm.append((t5-t4))
     plot_all_times(times_dm, times_bron_kerbosch, times_greedy, times_kanna_algorithm)
