@@ -125,7 +125,6 @@ def greedy(clique, g, nodes, label_to_node_, node_to_label_, trip=False):
         node2deg = {n: g.degree(n) for n in nodes if n not in clique}
         node_max_deg = max(node2deg, key=node2deg.get)
         clique.append(node_max_deg)
-    print(clique)
     return clique
 
 
@@ -162,33 +161,29 @@ def bron_kerbosch(graph, labels, label_to_node_, potential_clique, remaining_nod
     return found_cliques
 
 
-def bron_kerbosch_kanna(graph, labels, label_to_node_, potential_clique, remaining_nodes, skip_nodes, depth=0):
+def bron_kerbosch_kanna(graph, labels, label_to_node_, potential_clique, remaining_nodes, skip_nodes, depth=0,
+                        found_clique=[]):
     if len(remaining_nodes) == 0 and len(skip_nodes) == 0:
-        my_labels = []
-        for j in potential_clique:
-            my_labels.append(labels[j])
-        if len(potential_clique) == len(label_to_node_):
-            if len(set(my_labels)) == len(label_to_node_):
-                print("success")
-                #sys.exit()
-        return 1
+        return potential_clique
 
     for node in remaining_nodes:
         # Try adding the node to the current potential_clique to see if we can make it work.
         new_potential_clique = potential_clique + [node]
         new_remaining_nodes = [n for n in remaining_nodes if n in list(graph.neighbors(node))]
         new_skip_list = [n for n in skip_nodes if n in list(graph.neighbors(node))]
-        if bron_kerbosch_kanna(graph, labels, label_to_node_, new_potential_clique, new_remaining_nodes,
-                                       new_skip_list, depth + 1):
-            return 1
-
+        next_clique = bron_kerbosch_kanna(graph, labels, label_to_node_, new_potential_clique, new_remaining_nodes,
+                                       new_skip_list, depth + 1)
+        if len(next_clique) > len(found_clique):
+            found_clique = next_clique
+        if len(found_clique) == len(label_to_node_):
+            return found_clique
         # We're done considering this node.  If there was a way to form a clique with it, we
         # already discovered its maximal clique in the recursive call above.  So, go ahead
         # and remove it from the list of remaining nodes and add it to the skip list.
         remaining_nodes.remove(node)
         skip_nodes.append(node)
 
-    return 0
+    return found_clique
 
 
 def dm(graph, labels, sg_sz):
@@ -317,7 +312,6 @@ def kanna_algorithm(graph, node_to_label, label_to_node_,nodes_dict, labels_list
     min_label = find_next_label(nodes_dict, added_labels, labels_list, node_to_label)
     # run of the nodes in this label with their rank
     potential_nodes_in_label = [n for n in label_to_node_[min_label] if n in remaining_nodes]
-    added_labels.append(min_label)
     while potential_nodes_in_label:
         # take max node and remove from potential
         node = find_max_node(potential_nodes_in_label, nodes_dict, added_labels)
@@ -325,8 +319,10 @@ def kanna_algorithm(graph, node_to_label, label_to_node_,nodes_dict, labels_list
         # Try adding the node to the current potential_clique to see if we can make it work.
         new_potential_clique = potential_clique + [node]
         new_remaining_nodes = [n for n in remaining_nodes if n in list(graph.neighbors(node))]
+        new_added_labels = added_labels.copy()
+        new_added_labels.append(min_label)
         clique_founded = kanna_algorithm(graph, node_to_label, label_to_node_,nodes_dict, labels_list, new_potential_clique, new_remaining_nodes,
-                                       added_labels)
+                                       new_added_labels)
         if clique_founded:
             return clique_founded
 
@@ -426,14 +422,13 @@ def plot_times(times_list):
     plt.savefig("running_time.png")
 
 
-def plot_all_times(times_list1, times_list2, times_list3, times_list4):
+def plot_all_times(times_list1, times_list2, times_list3):
     plt.figure(0, figsize=(9, 7))
     classes = [i + 9 for i in range(len(times_list1))]
     plt.xticks(np.arange(min(classes), max(classes) + 1, 1))
-    plt.plot(classes, times_list1, color="blue", linewidth=3, label="dm algorithm")
-    plt.plot(classes, times_list2, color="red", linewidth=3, label="Bron–Kerbosch algorithm")
-    plt.plot(classes, times_list3, color="green", linewidth=3, label="Greedy Algorithm")
-    plt.plot(classes, times_list3, color="black", linewidth=3, label="New Algorithm")
+    plt.plot(classes, times_list1, color="red", linewidth=3, label="Bron–Kerbosch algorithm")
+    plt.plot(classes, times_list2, color="green", linewidth=3, label="Greedy Algorithm")
+    plt.plot(classes, times_list3, color="black", linewidth=3, label="New Algorithm after improvment")
     plt.title("Running Time VS Number of Classes")
     plt.xlabel("Number of classes")
     plt.ylabel("Running time [seconds]")
@@ -442,27 +437,37 @@ def plot_all_times(times_list1, times_list2, times_list3, times_list4):
 
 
 if __name__ == '__main__':
-    num_of_colours = 2
+    file_name = "graph"
+    num_of_colours = 1
     times_dm = []
     times_bron_kerbosch = []
+    clique_size_bron_kerbosch = []
     times_greedy = []
+    clique_size_greedy =[]
     times_kanna_algorithm = []
+    clique_size_kanna = []
     lonely_nodes = []
     graph_, node_to_label, label_to_node, avg_len_label = create_graph(0)
     for _ in range(num_of_colours):
-        original_graph = graph_.copy()
-        d, node_to_label, graph_ = add_class(original_graph, avg_len_label, label_to_node, node_to_label, num=1)
+        d, node_to_label, graph_ = add_class(graph_, avg_len_label, label_to_node, node_to_label, num=1)
+    # for i in range(num_of_colours):
+    #     graph_, node_to_label, label_to_node = nx.read_gpickle(file_name + "_{}_classes".format(i+9))
         # remove lonely nodes but not for dm
-        graph_, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
+        # graph_, n_lonely_nodes = remove_lonely_nodes(graph_, label_to_node, node_to_label)
         # lonely_nodes.append(n_lonely_nodes)
-        t1 = time.time()
-        total_time_, c_n_hat, final_clique_, avg_ = dm(original_graph.copy(), node_to_label, 100)
+
+        # t1 = time.time()
+        # total_time_, c_n_hat, final_clique_, avg_ = dm(graph_.copy(), node_to_label, 100)
         t2 = time.time()
-        times_dm.append(t2 - t1)
-        total_cliques_ = bron_kerbosch_kanna(graph_.copy(), node_to_label, label_to_node, [], list(graph_.nodes()), [])
+        # times_dm.append(t2 - t1)
+        total_clique_ = bron_kerbosch_kanna(graph_.copy(), node_to_label, label_to_node, [], list(graph_.nodes()), [])
         t3 = time.time()
         times_bron_kerbosch.append(t3-t2)
+        clique_size_bron_kerbosch.append(len(total_clique_))
         clique = greedy([0], graph_.copy(), graph_.nodes, label_to_node, node_to_label, trip=False)
+        triplets = [pair for pair in combinations(clique, 3)]
+        final_clique = greedy(list(triplets[0]), graph_, graph_.nodes, label_to_node, node_to_label, trip=True)
+        clique_size_greedy.append((len(final_clique)))
         t4 = time.time()
         times_greedy.append(t4-t3)
 
@@ -471,5 +476,12 @@ if __name__ == '__main__':
         clique = kanna_algorithm(graph_, node_to_label, label_to_node, nodes_dict, list(label_to_node.keys()), [], list(graph_.nodes), [])
         t5 = time.time()
         times_kanna_algorithm.append((t5-t4))
-    plot_all_times(times_dm, times_bron_kerbosch, times_greedy, times_kanna_algorithm)
-    plt.show()
+        clique_size_kanna.append(len(clique))
+    plot_all_times(times_bron_kerbosch, times_greedy, times_kanna_algorithm)
+
+    # classes = [i + 9 for i in range(len(times_dm))]
+    # plt.clf()
+    # plt.plot(classes, lonely_nodes, color="black", linewidth=3)
+    # plt.title("Number of Lonely Nodes VS Number of Classes")
+    # plt.savefig("lonely_nodes.png")
+    # plt.show()
